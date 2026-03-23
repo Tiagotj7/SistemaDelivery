@@ -7,18 +7,33 @@ if (!isset($_SESSION['usuario_id'])) {
 require 'conexao.php';
 
 $usuario_id = $_SESSION['usuario_id'];
+$statusFiltro = $_GET['status'] ?? "";
 
-// Busca pedidos do usuário logado
+// QUERY BASE
 $sql = "
     SELECT p.id, p.quantidade, p.status, p.criado_em,
            pr.nome AS nome_produto
     FROM pedidos p
     JOIN produtos pr ON pr.id = p.produto_id
     WHERE p.usuario_id = ?
-    ORDER BY p.criado_em DESC
 ";
+
+// FILTRO
+if ($statusFiltro) {
+    $sql .= " AND p.status = ?";
+}
+
+$sql .= " ORDER BY p.criado_em DESC";
+
+// PREPARE
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $usuario_id);
+
+if ($statusFiltro) {
+    $stmt->bind_param("is", $usuario_id, $statusFiltro);
+} else {
+    $stmt->bind_param("i", $usuario_id);
+}
+
 $stmt->execute();
 $result = $stmt->get_result();
 $stmt->close();
@@ -35,15 +50,30 @@ $stmt->close();
     <div class="topbar">
         <div>
             <div class="titulo">Meus Pedidos</div>
-            <div class="usuario-nome">Visualize e edite seus pedidos.</div>
+            <div class="usuario-nome">Gerencie seus pedidos.</div>
         </div>
         <div>
-            <a href="dashboard.php" class="btn btn-secundario">Voltar ao Dashboard</a>
+            <a href="dashboard.php" class="btn btn-secundario">Voltar</a>
         </div>
     </div>
 
-    <?php if (isset($_GET['msg']) && $_GET['msg'] === 'atualizado'): ?>
-        <div class="mensagem sucesso">Pedido atualizado com sucesso.</div>
+    <!-- FILTRO -->
+    <form method="get" style="margin-bottom:10px;">
+        <select name="status">
+            <option value="">Todos</option>
+            <option value="pendente" <?= $statusFiltro == 'pendente' ? 'selected' : '' ?>>Pendente</option>
+            <option value="concluido" <?= $statusFiltro == 'concluido' ? 'selected' : '' ?>>Concluído</option>
+        </select>
+        <button class="btn btn-primario">Filtrar</button>
+    </form>
+
+    <?php if (isset($_GET['msg'])): ?>
+        <div class="mensagem sucesso">
+            <?=
+                $_GET['msg'] === 'concluido' ? 'Pedido concluído!' :
+                ($_GET['msg'] === 'excluido' ? 'Pedido excluído!' : '')
+            ?>
+        </div>
     <?php endif; ?>
 
     <?php if ($result && $result->num_rows > 0): ?>
@@ -52,7 +82,7 @@ $stmt->close();
             <tr>
                 <th>ID</th>
                 <th>Produto</th>
-                <th>Quantidade</th>
+                <th>Qtd</th>
                 <th>Status</th>
                 <th>Data</th>
                 <th>Ação</th>
@@ -67,16 +97,29 @@ $stmt->close();
                     <td><?= htmlspecialchars($row['status']) ?></td>
                     <td><?= htmlspecialchars($row['criado_em']) ?></td>
                     <td>
-                        <a href="editar_pedido.php?id=<?= (int)$row['id'] ?>" class="btn btn-primario">
-                            Editar
-                        </a>
+
+                        <!-- CONCLUIR -->
+                        <?php if ($row['status'] !== 'concluido'): ?>
+                        <form method="post" action="concluir_pedido.php" style="display:inline;">
+                            <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                            <button class="btn btn-secundario">Concluir</button>
+                        </form>
+                        <?php endif; ?>
+
+                        <!-- EXCLUIR -->
+                        <form method="post" action="excluir_pedido.php" style="display:inline;"
+                              onsubmit="return confirm('Excluir pedido?')">
+                            <input type="hidden" name="id" value="<?= (int)$row['id'] ?>">
+                            <button class="btn btn-secundario">Excluir</button>
+                        </form>
+
                     </td>
                 </tr>
             <?php endwhile; ?>
             </tbody>
         </table>
     <?php else: ?>
-        <div class="mensagem erro">Você ainda não possui pedidos.</div>
+        <div class="mensagem erro">Nenhum pedido encontrado.</div>
     <?php endif; ?>
 </div>
 </body>
