@@ -37,3 +37,5 @@ CREATE TABLE IF NOT EXISTS pedidos (
 
 CREATE INDEX idx_produtos_nome ON produtos (nome);
 CREATE INDEX idx_pedidos_usuario ON pedidos (usuario_id);
+
+ALTER TABLE pedidos MODIFY status VARCHAR(50) DEFAULT 'pendente';
